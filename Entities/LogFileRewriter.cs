@@ -6,49 +6,41 @@ using System.Threading;
 using System.Threading.Tasks;
 namespace FallGuysStats {
     public class RewriteLogLine {
-        public TimeSpan Time { get; } = TimeSpan.Zero;
+        //public TimeSpan Time { get; } = TimeSpan.Zero;
         public DateTime Date { get; set; } = DateTime.MinValue;
         public string Line { get; set; }
         public bool IsValid { get; set; }
         public long Offset { get; set; }
 
-        public RewriteLogLine(string line, long offset, bool hasTimestamps = true) {
+        public RewriteLogLine(string line, long offset) {
             Offset = offset;
             Line = line;
+            
+            DateTime dateStamp;
+            bool isValidDate = false;
 
-            if (hasTimestamps) {
-                bool isValidSemiColon = (line.IndexOf(':') == 2 && line.IndexOf(':', 3) == 5 && line.IndexOf(':', 6) == 12);
-                bool isValidDot = (line.IndexOf('.') == 2 && line.IndexOf('.', 3) == 5 && line.IndexOf(':', 6) == 12);
-                IsValid = isValidSemiColon || isValidDot;
-                if (IsValid) {
-                    Time = TimeSpan.ParseExact(line.Substring(0, 12), isValidSemiColon ? "hh\\:mm\\:ss\\.fff" : "hh\\.mm\\.ss\\.fff", null);
-                }
-            } else {
-                DateTime dateStamp;
-                bool isValidDate = false;
+            try {
+                var colonIndex = line.IndexOf(':');
+                isValidDate = !string.IsNullOrWhiteSpace(line) && colonIndex > 0 && DateTime.TryParse(line.Substring(0, colonIndex), out dateStamp);
+            } catch { }
 
-                try {
-                    var colonIndex = line.IndexOf(':');
-                    isValidDate = !string.IsNullOrWhiteSpace(line) && colonIndex > 0 && DateTime.TryParse(line.Substring(0, colonIndex), out dateStamp);
-                } catch { }
+            if (isValidDate) {
+                IsValid = true;
 
-                if (isValidDate) {
-                    IsValid = true;
+                // Ignoring that some lines have a timestamp after the date,
+                // could cause problems with timestamp-less lines around it 
+                // being presented out of time order
 
-                    // Ignoring that some lines have a timestamp after the date,
-                    // could cause problems with timestamp-less lines around it 
-                    // being presented out of time order
+                // Rounding time to 1ms to faithfully mimic the old log format
+                var timeStamp = DateTime.UtcNow.AddTicks(-(DateTime.UtcNow.Ticks % 10));
+                var timeStampString = timeStamp.ToString("HH\\:mm\\:ss\\.fff");
 
-                    var timeStamp = DateTime.UtcNow.AddTicks(-(DateTime.UtcNow.Ticks % 10));
-                    var timeStampString = timeStamp.ToString("hh\\:mm\\:ss\\.fff");
+                Date = timeStamp;
 
-                    Time = TimeSpan.ParseExact(timeStampString, "hh\\:mm\\:ss\\.fff", null);
-                    Date = timeStamp;
-
-                    // Modify line to remove leading date
-                    Line = Line.Substring(Line.IndexOf(":"));
-                    Line = timeStampString + Line;
-                }
+                // Modify line to remove leading date
+                Line = Line.Substring(Line.IndexOf(":"));
+                Line = timeStampString + Line;
+                
             }
         }
 
@@ -79,8 +71,6 @@ namespace FallGuysStats {
         private Thread watcher;
 
         public event Action<string> OnError;
-
-        public bool LogHasTimestamps = false;
 
         public void Start(string logDirectory, string fileName) {
             if (running) { return; }
@@ -116,7 +106,6 @@ namespace FallGuysStats {
             string currentFilePath = filePath;
             long offset = 0;
 
-
             while (!stop) {
                 try {
                     if (File.Exists(currentFilePath)) {
@@ -135,7 +124,7 @@ namespace FallGuysStats {
                                 DateTime currentDate = lastDate;
                                 while ((line = sr.ReadLine()) != null) {
                                     
-                                    RewriteLogLine logLine = new RewriteLogLine(line, sr.Position, LogHasTimestamps);
+                                    RewriteLogLine logLine = new RewriteLogLine(line, sr.Position);
                                     tempLines.Add(logLine.Line);
 
                                     // [StateGameLoading] Loading game level scene
@@ -145,7 +134,7 @@ namespace FallGuysStats {
                                         // Search player-withtime.log for the "[GlobalGameStateClient].PreStart called at" message. if none found, inject it
                                         string contentsWithTimeLog = File.ReadAllText(newFilePath);
                                         if (contentsWithTimeLog.IndexOf("[GlobalGameStateClient].PreStart called at", StringComparison.OrdinalIgnoreCase) < 0) {
-                                            tempLines.Add(String.Format("{0}: [GlobalGameStateClient].PreStart called at {1}  UTC", logLine.Date.ToString("hh\\:mm\\:ss\\.fff"), logLine.Date.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss")));
+                                            tempLines.Add(String.Format("{0}: [GlobalGameStateClient].PreStart called at {1}  UTC", logLine.Date.ToString("HH\\:mm\\:ss\\.fff"), logLine.Date.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss")));
                                         }
                                     }
 
