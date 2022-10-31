@@ -6,8 +6,10 @@ In version 8.2.0 of Fall Guys, the logs stopped having timestamps. This update r
 
 ## Usage
 
+  - Download and install the original Fall Guys Stats program: https://github.com/ShootMe/FallGuysStats
   - Make a backup of your existing Fall Guys Stats folder!
   - Download https://github.com/ThreesFG/FallGuysStats/raw/master/FallGuysStats-8.2-Breakfix-20221031.zip
+    - This zip file only contains the executable, must have the rest of the Fall Guys Stats files installed!
   - Replace the file "FallGuysStats.exe" in your Fall Guys Stats folder with the one in this .zip file
   - Make sure that the program is running before starting a show in game! - As we're recreating timestamps on the fly, this is required.
   
